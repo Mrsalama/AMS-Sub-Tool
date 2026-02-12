@@ -56,7 +56,7 @@ if os.path.exists(file_name):
         # Displaying a styled dark dataframe
         st.dataframe(df.style.set_properties(**{
             'background-color': '#1e1e1e',
-            'color': 'white',
+            'color': 'black',
             'border-color': '#444'
         }), use_container_width=True)
     else:
