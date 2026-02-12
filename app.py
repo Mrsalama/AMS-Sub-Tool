@@ -50,12 +50,14 @@ if os.path.exists(file_name):
         st.markdown("---")
         refresh_trigger = st.button("🔄 Shuffle Substitutes")
 
-    # LOGIC: If no teacher selected, show the full table in dark mode
+    # LOGIC: If no teacher selected, show the full table
     if absent_teacher == "-- Show Full Schedule --":
-        st.subheader("🗓️ Full Staff Schedule")
-        # Displaying a styled dark dataframe
+        # تغيير لون العنوان "🗓️ Full Staff Schedule" للون الكحلي الغامق
+        st.markdown("<h2 style='color: #002e5d;'>🗓️ Full Staff Schedule</h2>", unsafe_allow_html=True)
+        
+        # عرض الجدول
         st.dataframe(df.style.set_properties(**{
-            'background-color': '#1e1e1e',
+            'background-color': '#f0f2f6',
             'color': 'black',
             'border-color': '#444'
         }), use_container_width=True)
