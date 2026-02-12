@@ -9,7 +9,7 @@ st.set_page_config(page_title="AMS Smart Sub Tool", page_icon="🏫", layout="wi
 # Your background image link
 bg_img_url = "https://img1.wsimg.com/isteam/ip/d03b28ee-bce7-4c2e-abac-d1a2150c0744/AMS%20COVER.jpg/:/cr=t:0%25,l:0%25,w:100%25,h:100%25/rs=w:890,cg:true"
 
-# Advanced CSS for dark theme and high contrast
+# Advanced CSS for high contrast and dark table styling
 st.markdown(f"""
     <style>
     .stApp {{
@@ -17,21 +17,15 @@ st.markdown(f"""
         background-attachment: fixed;
         background-size: cover;
     }}
-    .main .block-container {{ background-color: transparent; padding-top: 2rem; }}
-    .dark-title {{ color: #001a33 !important; font-weight: 800; font-size: 42px; margin-bottom: 10px; }}
-    .dark-subtitle {{ color: #002e5d !important; font-weight: 700; font-size: 28px; margin-top: 20px; }}
+    .main .block-container {{ background-color: transparent; padding-top: 1rem; }}
+    .dark-title {{ color: #001a33 !important; font-weight: 800; font-size: 38px; margin-bottom: 5px; }}
+    .sub-card {{ background-color: #ffffff; padding: 25px; border-radius: 15px; border: 2px solid #002e5d; box-shadow: 0 4px 12px rgba(0,0,0,0.1); text-align: center; margin-bottom: 20px; }}
+    .session-header {{ background-color: #002e5d; color: #ffffff !important; font-weight: bold; font-size: 20px; padding: 8px; border-radius: 8px; }}
+    .teacher-name {{ color: #d32f2f !important; font-size: 22px; font-weight: bold; }}
     
-    /* Table Styling */
-    .styled-table {{ border-collapse: collapse; margin: 25px 0; font-size: 0.9em; min-width: 400px; border-radius: 10px; overflow: hidden; box-shadow: 0 0 20px rgba(0, 0, 0, 0.15); }}
-    
-    /* Card Design */
-    .sub-card {{ background-color: #ffffff; padding: 25px; border-radius: 20px; border: 1px solid #002e5d; box-shadow: 0 10px 20px rgba(0,0,0,0.1); text-align: center; margin-bottom: 20px; }}
-    .session-header {{ background-color: #002e5d; color: #ffffff !important; font-weight: 800; font-size: 22px; padding: 8px; border-radius: 10px; margin-bottom: 12px; }}
-    .class-name {{ color: #000000 !important; font-size: 20px; font-weight: 700; margin-top: 8px; }}
-    .teacher-name {{ color: #d32f2f !important; font-size: 22px; font-weight: bold; border: 2px solid #d32f2f; padding: 5px; border-radius: 10px; display: inline-block; }}
-    
-    .white-text {{ color: #ffffff !important; text-shadow: 1px 1px 2px rgba(0,0,0,0.8); font-weight: bold; }}
-    [data-testid="stSidebar"] label {{ color: white !important; font-size: 18px !important; font-weight: bold !important; }}
+    /* Style for the full table display */
+    .styled-table {{ color: #001a33 !important; font-weight: bold; }}
+    [data-testid="stSidebar"] label {{ color: white !important; font-weight: bold !important; }}
     </style>
     """, unsafe_allow_html=True)
 
@@ -43,71 +37,62 @@ if os.path.exists(file_name):
     # Load and clean data
     df = pd.read_excel(file_name).fillna('')
     df.columns = df.columns.str.strip()
+    
+    # Pre-processing: Rename Columns for display if they start with P
+    display_df = df.copy()
+    display_df.columns = [col.replace('P', 'Session ') if col.startswith('P') else col for col in display_df.columns]
 
     with st.sidebar:
-        st.markdown("<h2 class='white-text'>Management</h2>", unsafe_allow_html=True)
-        teacher_options = ["-- View Full Schedule --"] + list(df['Teacher_Name'].unique())
+        st.markdown("<h2 style='color:white;'>Management</h2>", unsafe_allow_html=True)
+        teacher_options = ["-- Full Schedule --"] + list(df['Teacher_Name'].unique())
         absent_teacher = st.selectbox("Select Absent Teacher:", teacher_options)
-        st.markdown("---")
         refresh_trigger = st.button("🔄 Shuffle Substitutes")
-        st.markdown("<p class='white-text'>System prioritizes substitutes from the same Grade level first.</p>", unsafe_allow_html=True)
 
-    # logic to handle display
-    if absent_teacher == "-- View Full Schedule --":
-        st.markdown("<h3 class='dark-subtitle'>Full School Schedule</h3>", unsafe_allow_html=True)
-        # Displaying the dataframe with dark colors
-        st.dataframe(df.style.set_properties(**{'background-color': 'white', 'color': 'black', 'border-color': '#002e5d'}))
+    if absent_teacher == "-- Full Schedule --":
+        st.markdown("<h3 style='color:#002e5d;'>Current Staff Schedule</h3>", unsafe_allow_html=True)
+        # Displaying the table with dark text
+        st.dataframe(display_df.style.set_properties(**{'color': 'black', 'font-weight': 'bold', 'border-color': '#002e5d'}))
     else:
+        # Substitution Logic
         periods = [col for col in df.columns if col.startswith('P')]
-        teacher_row = df[df['Teacher_Name'] == absent_teacher].iloc[0]
+        teacher_info = df[df['Teacher_Name'] == absent_teacher].iloc[0]
+        absent_grade = teacher_info['Grade'] if 'Grade' in df.columns else None
         
-        # Get absent teacher's Grade/Level (Assuming it's in a column named 'Grade' or 'Level')
-        # If no such column, we try to extract from class name like 'G1'
-        absent_grade = str(teacher_row.get('Grade', '')) 
-
-        busy_periods = [p for p in periods if str(teacher_row[p]).lower() != 'free' and str(teacher_row[p]).strip() != '']
+        busy_periods = [p for p in periods if str(teacher_info[p]).lower() != 'free' and str(teacher_info[p]).strip() != '']
 
         if busy_periods:
-            st.markdown(f"<h3 class='dark-subtitle'>Substitution Plan for: <span style='color:#d32f2f;'>{absent_teacher}</span></h3>", unsafe_allow_html=True)
+            st.markdown(f"<h3 style='color:#002e5d;'>Required Covers for: <span style='color:#d32f2f;'>{absent_teacher}</span></h3>", unsafe_allow_html=True)
             cols = st.columns(len(busy_periods))
             
             for i, p in enumerate(busy_periods):
-                class_label = teacher_row[p]
+                class_label = teacher_info[p]
                 
-                # Logic: Find available teachers
-                all_available = df[df[p].astype(str).str.lower() == 'free']
+                # Intelligent Search for Substitute
+                # 1. Look for 'Free' teachers in the same Grade
+                same_grade_subs = df[(df[p].astype(str).str.lower() == 'free') & (df['Grade'] == absent_grade)]['Teacher_Name'].tolist()
+                # 2. Look for 'Free' teachers in other Grades (Backup)
+                other_grade_subs = df[(df[p].astype(str).str.lower() == 'free') & (df['Grade'] != absent_grade)]['Teacher_Name'].tolist()
                 
-                # 1. Try same Grade
-                if 'Grade' in df.columns:
-                    same_grade_available = all_available[all_available['Grade'] == absent_grade]['Teacher_Name'].tolist()
-                else:
-                    same_grade_available = []
-
+                # Priority Selection
+                available_subs = same_grade_subs if same_grade_subs else other_grade_subs
+                
                 with cols[i]:
-                    st.markdown(f'<div class="sub-card">', unsafe_allow_html=True)
-                    st.markdown(f'<div class="session-header">Session {p.replace("P","")}</div>', unsafe_allow_html=True)
-                    st.markdown(f'<div class="class-name">Class: {class_label}</div>', unsafe_allow_html=True)
-                    st.markdown('<p style="color: #444; margin-top:10px; font-weight:bold;">Assigned Substitute:</p>', unsafe_allow_html=True)
-
-                    if not all_available.empty:
-                        # Priority selection
-                        if same_grade_available:
-                            suggested_sub = random.choice(same_grade_available)
-                            st.markdown(f'<div class="teacher-name">👤 {suggested_sub}</div>', unsafe_allow_html=True)
-                            st.caption("✨ Same Grade Match")
-                        else:
-                            # If no same grade, pick any available
-                            suggested_sub = random.choice(all_available['Teacher_Name'].tolist())
-                            st.markdown(f'<div class="teacher-name">👤 {suggested_sub}</div>', unsafe_allow_html=True)
-                            st.caption("ℹ️ Cross-Grade Match")
+                    st.markdown(f"""<div class="sub-card">
+                        <div class="session-header">Session {p.replace('P','')}</div>
+                        <div style="color:#002e5d; margin-top:10px;">Class: <b>{class_label}</b></div>
+                        <p style="color:#555; font-size:12px; margin-top:10px;">SUGGESTED SUBSTITUTE</p>""", unsafe_allow_html=True)
+                    
+                    if available_subs:
+                        chosen = random.choice(available_subs)
+                        # Mark if it's from the same grade or backup
+                        grade_tag = "(Same Grade)" if chosen in same_grade_subs else "(Backup Grade)"
+                        st.markdown(f'<div class="teacher-name">👤 {chosen}</div>', unsafe_allow_html=True)
+                        st.markdown(f'<div style="color:green; font-size:11px;">{grade_tag}</div>', unsafe_allow_html=True)
                     else:
-                        st.error("No Staff Available")
+                        st.error("No one free")
                     st.markdown('</div>', unsafe_allow_html=True)
-            
-            if refresh_trigger:
-                st.toast("Regenerating smart matches...")
         else:
-            st.balloons()
-            st.success(f"Teacher {absent_teacher} is free today!")
+            st.success(f"{absent_teacher} has no classes to cover.")
+
 else:
-    st.error(f"File '{file_name}' not found.")
+    st.error("Please upload 'school_schedule.xlsx' with 'Teacher_Name', 'Grade', and 'P1-P8' columns.")
