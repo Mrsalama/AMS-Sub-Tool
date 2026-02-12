@@ -8,7 +8,7 @@ st.set_page_config(page_title="AMS Smart Sub Tool", page_icon="🏫", layout="wi
 
 bg_img_url = "https://img1.wsimg.com/isteam/ip/d03b28ee-bce7-4c2e-abac-d1a2150c0744/AMS%20COVER.jpg/:/cr=t:0%25,l:0%25,w:100%25,h:100%25/rs=w:890,cg:true"
 
-# Advanced CSS for Dark Tables and Cards
+# Advanced CSS
 st.markdown(f"""
     <style>
     .stApp {{
@@ -22,13 +22,6 @@ st.markdown(f"""
     .session-header {{ background-color: #002e5d; color: #ffffff !important; font-weight: 800; font-size: 22px; padding: 8px; border-radius: 10px; margin-bottom: 10px; }}
     .teacher-name {{ color: #d32f2f !important; font-size: 22px; font-weight: bold; }}
     
-    /* Dark Table Styling */
-    .stDataFrame {{
-        background-color: #1e1e1e !important;
-        border-radius: 15px;
-        padding: 10px;
-    }}
-    div[data-testid="stTable"] {{ background-color: #1e1e1e; color: white; }}
     [data-testid="stSidebar"] label {{ color: white !important; font-weight: bold !important; }}
     [data-testid="stSidebar"] .stMarkdown p {{ color: white !important; }}
     </style>
@@ -39,7 +32,6 @@ st.markdown("<h1 class='dark-title'>🏫 AMS Smart Substitution System</h1>", un
 file_name = "school_schedule.xlsx"
 
 if os.path.exists(file_name):
-    # Load and clean data
     df = pd.read_excel(file_name).fillna('')
     df.columns = df.columns.str.strip()
     
@@ -50,22 +42,24 @@ if os.path.exists(file_name):
         st.markdown("---")
         refresh_trigger = st.button("🔄 Shuffle Substitutes")
 
-    # LOGIC: If no teacher selected, show the full table
     if absent_teacher == "-- Show Full Schedule --":
-        # تغيير لون العنوان "🗓️ Full Staff Schedule" للون الكحلي الغامق
         st.markdown("<h2 style='color: #002e5d;'>🗓️ Full Staff Schedule</h2>", unsafe_allow_html=True)
-        
-        # عرض الجدول
         st.dataframe(df.style.set_properties(**{
             'background-color': '#f0f2f6',
             'color': 'black',
             'border-color': '#444'
         }), use_container_width=True)
     else:
-        # Substitution Process
         periods = [col for col in df.columns if col.startswith('P')]
         teacher_row = df[df['Teacher_Name'] == absent_teacher].iloc[0]
-        absent_grade = teacher_row['Grade'] if 'Grade' in df.columns else ""
+        
+        # استخراج رقم المرحلة (مثلاً يحول G10 إلى 10) للبحث عن الأقرب
+        def get_grade_num(val):
+            try: return int(''.join(filter(str.isdigit, str(val))))
+            except: return None
+
+        absent_grade_val = teacher_row['Grade'] if 'Grade' in df.columns else ""
+        absent_grade_num = get_grade_num(absent_grade_val)
         
         busy_periods = [p for p in periods if str(teacher_row[p]).lower() != 'free' and str(teacher_row[p]).strip() != '']
 
@@ -75,40 +69,43 @@ if os.path.exists(file_name):
             
             for i, p in enumerate(busy_periods):
                 class_label = teacher_row[p]
+                all_free = df[df[p].astype(str).str.lower() == 'free'].copy()
                 
-                # Intelligent Search Logic:
-                # 1. Find all free teachers for this period
-                all_free = df[df[p].astype(str).str.lower() == 'free']
+                suggested_sub = "No Staff Available"
                 
-                if not all_free.empty:
-                    # 2. Try to find teachers from the SAME GRADE first
-                    if 'Grade' in df.columns:
-                        same_grade = all_free[all_free['Grade'] == absent_grade]
-                        if not same_grade.empty:
-                            suggested_sub = random.choice(same_grade['Teacher_Name'].tolist())
-                        else:
-                            # 3. If not found, find from ANY other grade (the closest available)
-                            suggested_sub = random.choice(all_free['Teacher_Name'].tolist())
+                if not all_free.empty and 'Grade' in df.columns:
+                    # منطق البحث الذكي:
+                    # 1. المدرسين من نفس المرحلة بالضبط
+                    same_grade = all_free[all_free['Grade'] == absent_grade_val]
+                    
+                    if not same_grade.empty:
+                        suggested_sub = random.choice(same_grade['Teacher_Name'].tolist())
                     else:
-                        suggested_sub = random.choice(all_free['Teacher_Name'].tolist())
-                else:
-                    suggested_sub = None
+                        # 2. المدرسين من المرحلة الأقرب (فرق 1)
+                        all_free['grade_num'] = all_free['Grade'].apply(get_grade_num)
+                        if absent_grade_num is not None:
+                            near_grade = all_free[abs_all_free['grade_num'] - absent_grade_num <= 1]
+                            if not near_grade.empty:
+                                suggested_sub = random.choice(near_grade['Teacher_Name'].tolist())
+                            else:
+                                # 3. أي مدرس متاح في المدرسة
+                                suggested_sub = random.choice(all_free['Teacher_Name'].tolist())
+                        else:
+                            suggested_sub = random.choice(all_free['Teacher_Name'].tolist())
+                elif not all_free.empty:
+                    suggested_sub = random.choice(all_free['Teacher_Name'].tolist())
 
                 with cols[i]:
                     st.markdown(f"""<div class="sub-card">
                         <div class="session-header">Session {p.replace('P','')}</div>
                         <div style="color:#555; font-weight:bold;">Class: {class_label}</div>
                         <p style="color:#888; font-size:12px; margin-top:10px;">PROPOSED SUBSTITUTE</p>""", unsafe_allow_html=True)
-                    if suggested_sub:
-                        st.markdown(f'<div class="teacher-name">👤 {suggested_sub}</div>', unsafe_allow_html=True)
-                    else:
-                        st.error("No Staff Available")
+                    st.markdown(f'<div class="teacher-name">👤 {suggested_sub}</div>', unsafe_allow_html=True)
                     st.markdown('</div>', unsafe_allow_html=True)
             
             if refresh_trigger:
-                st.toast("Re-calculating best matches...")
+                st.toast("Finding best qualified matches...")
         else:
-            st.balloons()
             st.success(f"{absent_teacher} has no classes today.")
 else:
     st.error("Please upload 'school_schedule.xlsx' to GitHub.")
