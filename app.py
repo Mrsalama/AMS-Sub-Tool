@@ -35,39 +35,55 @@ st.markdown("<h1 class='dark-title'>🏫 AMS Smart Substitution System</h1>", un
 file_name = "school_schedule.xlsx"
 
 if os.path.exists(file_name):
-    df = pd.read_excel(file_name)
+    # .fillna('') بتشيل أي nan وتحط مكانها نص فاضي في كل الملف
+    df = pd.read_excel(file_name).fillna('')
+    
     with st.sidebar:
         st.markdown("<h2 class='white-text'>Management</h2>", unsafe_allow_html=True)
-        absent_teacher = st.selectbox("Select Absent Teacher:", df['Teacher_Name'].unique())
+        
+        # إضافة خيار "None" في البداية عشان البرنامج ميبحثش تلقائياً
+        teacher_options = ["-- Select Teacher --"] + list(df['Teacher_Name'].unique())
+        absent_teacher = st.selectbox("Select Absent Teacher:", teacher_options)
+        
         st.markdown("---")
         refresh_trigger = st.button("🔄 Shuffle Substitutes")
         st.markdown("<p class='white-text'>The system picks a substitute from available 'Free' staff for the selected teacher's periods.</p>", unsafe_allow_html=True)
 
-    periods = [col for col in df.columns if col.startswith('P')]
-    teacher_row = df[df['Teacher_Name'] == absent_teacher].iloc[0]
-    busy_periods = [p for p in periods if str(teacher_row[p]).lower() != 'free']
+    # لن يتم تنفيذ البحث إلا إذا تم اختيار اسم مدرس حقيقي (ليس الخيار الافتراضي)
+    if absent_teacher != "-- Select Teacher --":
+        periods = [col for col in df.columns if col.startswith('P')]
+        teacher_row = df[df['Teacher_Name'] == absent_teacher].iloc[0]
+        
+        # التأكد من تجاهل الخلايا الفاضية (nan سابقاً) وكلمة free
+        busy_periods = [p for p in periods if str(teacher_row[p]).lower() != 'free' and str(teacher_row[p]).strip() != '']
 
-    if busy_periods:
-        st.markdown(f"<h3 class='dark-subtitle'>Required Covers for: <span style='color:#d32f2f;'>{absent_teacher}</span></h3>", unsafe_allow_html=True)
-        cols = st.columns(len(busy_periods))
-        for i, p in enumerate(busy_periods):
-            class_label = teacher_row[p]
-            available_teachers = df[df[p].astype(str).str.lower() == 'free']['Teacher_Name'].tolist()
-            with cols[i]:
-                st.markdown(f"""<div class="sub-card">
-                    <div class="session-header">Session {p.replace('P','')}</div>
-                    <div class="class-name">Class: {class_label}</div>
-                    <p style="color: #777; margin-top:15px; font-size:14px; text-transform:uppercase;">Assigned Substitute</p>""", unsafe_allow_html=True)
-                if available_teachers:
-                    suggested_sub = random.choice(available_teachers)
-                    st.markdown(f'<div class="teacher-name">👤 {suggested_sub}</div>', unsafe_allow_html=True)
-                else:
-                    st.error("No Staff Available")
-                st.markdown('</div>', unsafe_allow_html=True)
-        if refresh_trigger:
-            st.toast("Updating assignments...")
+        if busy_periods:
+            st.markdown(f"<h3 class='dark-subtitle'>Required Covers for: <span style='color:#d32f2f;'>{absent_teacher}</span></h3>", unsafe_allow_html=True)
+            cols = st.columns(len(busy_periods))
+            for i, p in enumerate(busy_periods):
+                class_label = teacher_row[p]
+                available_teachers = df[df[p].astype(str).str.lower() == 'free']['Teacher_Name'].tolist()
+                
+                with cols[i]:
+                    st.markdown(f"""<div class="sub-card">
+                        <div class="session-header">Session {p.replace('P','')}</div>
+                        <div class="class-name">Class: {class_label}</div>
+                        <p style="color: #777; margin-top:15px; font-size:14px; text-transform:uppercase;">Assigned Substitute</p>""", unsafe_allow_html=True)
+                    
+                    if available_teachers:
+                        suggested_sub = random.choice(available_teachers)
+                        st.markdown(f'<div class="teacher-name">👤 {suggested_sub}</div>', unsafe_allow_html=True)
+                    else:
+                        st.error("No Staff Available")
+                    st.markdown('</div>', unsafe_allow_html=True)
+            
+            if refresh_trigger:
+                st.toast("Updating assignments...")
+        else:
+            st.balloons()
+            st.success(f"No classes found for {absent_teacher} today.")
     else:
-        st.balloons()
-        st.success(f"No classes found for {absent_teacher} today.")
+        # رسالة ترحيبية تظهر قبل اختيار المدرس
+        st.info("Please select a teacher from the sidebar to start the substitution process.")
 else:
     st.error(f"Missing File: Please ensure '{file_name}' is in the folder.")
